@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
+from typing import Optional
 import json
 
 Base = declarative_base()
@@ -49,7 +50,7 @@ class Database:
             await session.commit()
             return history.id
     
-    async def get_history(self, limit: int = 50, tool_id: str = None):
+    async def get_history(self, limit: int = 50, tool_id: Optional[str] = None):
         """获取执行历史"""
         from sqlalchemy import select, desc
         

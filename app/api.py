@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request, HTTPException, Form, UploadFile, File
+from fastapi import APIRouter, Request, HTTPException, Form, File
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from starlette.datastructures import UploadFile
 from typing import Optional
 import json
 from pathlib import Path
@@ -72,21 +73,41 @@ async def execute_tool_stream(request: Request, tool_id: str):
         form_data = await request.form()
         inputs = {}
         
+        print(f"[DEBUG] 收到的表单字段: {list(form_data.keys())}")  # 调试日志
+        
         for field in metadata.input_fields:
             value = form_data.get(field.name)
             
+            print(f"[DEBUG] 字段 {field.name}: type={type(value)}, value={value if not isinstance(value, UploadFile) else f'UploadFile({value.filename})'}")
+            
             if field.type == "file":
-                if isinstance(value, UploadFile):
+                print(f"[DEBUG] 检查文件字段: isinstance={isinstance(value, UploadFile)}, filename={getattr(value, 'filename', None)}, bool(filename)={bool(getattr(value, 'filename', None))}")
+                if isinstance(value, UploadFile) and value.filename and len(value.filename) > 0:
                     # 保存上传文件
-                    upload_path = Path("uploads") / value.filename
+                    upload_dir = Path("uploads")
+                    upload_dir.mkdir(exist_ok=True)
+                    upload_path = upload_dir / value.filename
+                    
+                    # 读取并保存文件内容
+                    file_content = await value.read()
+                    print(f"[DEBUG] 文件内容大小: {len(file_content)} bytes")
+                    
                     with open(upload_path, "wb") as f:
-                        f.write(await value.read())
+                        f.write(file_content)
+                    
                     inputs[field.name] = str(upload_path)
+                    print(f"[DEBUG] 文件已保存: {upload_path}, 文件大小: {upload_path.stat().st_size} bytes")
+                else:
+                    # 如果是必填字段但没有文件，设为 None
+                    inputs[field.name] = None
+                    print(f"[DEBUG] 未接收到文件，value类型: {type(value)}, value: {value}")
             elif field.type == "number":
                 if value:
                     inputs[field.name] = float(value) if '.' in value else int(value)
             else:
                 inputs[field.name] = value
+        
+        print(f"[DEBUG] 最终inputs: {inputs}")  # 调试日志
         
         # 流式执行
         async def event_generator():

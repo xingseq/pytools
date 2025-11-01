@@ -79,21 +79,21 @@
     <section x-show="result && result.success">
         <h2>执行结果</h2>
         <div class="output-container">
-            <div x-show="result.output">
+            <div x-show="result && result.output">
                 <h3>输出</h3>
-                <pre x-text="formatOutput(result.output)"></pre>
+                <pre x-text="result ? formatOutput(result.output) : ''"></pre>
             </div>
             
-            <div x-show="result.files && result.files.length > 0">
+            <div x-show="result && result.files && result.files.length > 0">
                 <h3>生成的文件</h3>
-                <template x-for="file in result.files" :key="file.path">
+                <template x-for="file in (result && result.files ? result.files : [])" :key="file.path">
                     <div>
                         <a :href="file.path" :download="file.name" target="_blank">📥 下载 <span x-text="file.name"></span></a>
                     </div>
                 </template>
             </div>
             
-            <small>执行时间: <span x-text="result.execution_time"></span> 秒</small>
+            <small>执行时间: <span x-text="result && result.execution_time ? result.execution_time : '0'"></span> 秒</small>
         </div>
     </section>
 </div>
@@ -114,8 +114,12 @@ function toolExecutor() {
 
             const form = document.getElementById('tool-form');
             const formData = new FormData(form);
-
-            const eventSource = new EventSource('/api/tool/{{ metadata.id }}/execute?' + new URLSearchParams(formData).toString());
+            
+            // 调试：打印 FormData 内容
+            console.log('FormData entries:');
+            for (let pair of formData.entries()) {
+                console.log(pair[0] + ':', pair[1]);
+            }
 
             fetch('/api/tool/{{ metadata.id }}/execute', {
                 method: 'POST',
@@ -181,6 +185,7 @@ function toolExecutor() {
         },
 
         formatOutput(output) {
+            if (!output) return '';
             if (typeof output === 'object') {
                 return JSON.stringify(output, null, 2);
             }
