@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header>
+    <h1>工具列表</h1>
+    <p>共 {{ total_tools }} 个工具</p>
+</header>
+
+{% for category, tools in categories.items() %}
+<section>
+    <h2>{{ category }}</h2>
+    <div class="grid">
+        {% for item in tools %}
+        <article class="tool-card" onclick="window.location.href='/tool/{{ item.metadata.id }}'">
+            <div class="tool-icon">{{ item.metadata.icon }}</div>
+            <h3>{{ item.metadata.name }}</h3>
+            <p>{{ item.metadata.description }}</p>
+            <small>版本: {{ item.metadata.version }}</small>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endfor %}
+{% endblock %}

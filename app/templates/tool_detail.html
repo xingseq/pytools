@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}{{ metadata.name }} - PyTools{% endblock %}
+
+{% block content %}
+<div x-data="toolExecutor()">
+    <header>
+        <a href="/">← 返回</a>
+        <h1>{{ metadata.icon }} {{ metadata.name }}</h1>
+        <p>{{ metadata.description }}</p>
+        <span class="category-badge">{{ metadata.category }}</span>
+    </header>
+
+    <section>
+        <h2>输入参数</h2>
+        <form id="tool-form" @submit.prevent="executeToolStream">
+            {% for field in metadata.input_fields %}
+            <label for="{{ field.name }}">
+                {{ field.label }}
+                {% if field.required %}<abbr title="必填">*</abbr>{% endif %}
+                {% if field.type == "text" %}
+                    <input 
+                        type="text" 
+                        id="{{ field.name }}" 
+                        name="{{ field.name }}" 
+                        placeholder="{{ field.placeholder or '' }}"
+                        {% if field.required %}required{% endif %}
+                        value="{{ field.default or '' }}">
+                {% elif field.type == "textarea" %}
+                    <textarea 
+                        id="{{ field.name }}" 
+                        name="{{ field.name }}" 
+                        placeholder="{{ field.placeholder or '' }}"
+                        {% if field.required %}required{% endif %}
+                        rows="5">{{ field.default or '' }}</textarea>
+                {% elif field.type == "number" %}
+                    <input 
+                        type="number" 
+                        id="{{ field.name }}" 
+                        name="{{ field.name }}" 
+                        placeholder="{{ field.placeholder or '' }}"
+                        {% if field.required %}required{% endif %}
+                        value="{{ field.default or '' }}">
+                {% elif field.type == "file" %}
+                    <input 
+                        type="file" 
+                        id="{{ field.name }}" 
+                        name="{{ field.name }}" 
+                        {% if field.required %}required{% endif %}>
+                {% elif field.type == "select" %}
+                    <select id="{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}>
+                        {% for option in field.options %}
+                        <option value="{{ option }}" {% if option == field.default %}selected{% endif %}>{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                {% endif %}
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+            </label>
+            {% endfor %}
+
+            <button type="submit" :disabled="isExecuting">
+                <span x-show="isExecuting" class="spinner"></span>
+                <span x-text="isExecuting ? '执行中...' : '执行'"></span>
+            </button>
+        </form>
+    </section>
+
+    <section x-show="logs.length > 0">
+        <h2>执行日志</h2>
+        <div class="log-container">
+            <template x-for="log in logs" :key="log.id">
+                <div class="log-line" :class="log.type === 'error' ? 'log-error' : (log.type === 'success' ? 'log-success' : '')">
+                    <span x-text="log.message"></span>
+                </div>
+            </template>
+        </div>
+    </section>
+
+    <section x-show="result && result.success">
+        <h2>执行结果</h2>
+        <div class="output-container">
+            <div x-show="result.output">
+                <h3>输出</h3>
+                <pre x-text="formatOutput(result.output)"></pre>
+            </div>
+            
+            <div x-show="result.files && result.files.length > 0">
+                <h3>生成的文件</h3>
+                <template x-for="file in result.files" :key="file.path">
+                    <div>
+                        <a :href="file.path" :download="file.name" target="_blank">📥 下载 <span x-text="file.name"></span></a>
+                    </div>
+                </template>
+            </div>
+            
+            <small>执行时间: <span x-text="result.execution_time"></span> 秒</small>
+        </div>
+    </section>
+</div>
+
+<script>
+function toolExecutor() {
+    return {
+        isExecuting: false,
+        logs: [],
+        result: null,
+        logId: 0,
+
+        executeToolStream() {
+            this.isExecuting = true;
+            this.logs = [];
+            this.result = null;
+            this.logId = 0;
+
+            const form = document.getElementById('tool-form');
+            const formData = new FormData(form);
+
+            const eventSource = new EventSource('/api/tool/{{ metadata.id }}/execute?' + new URLSearchParams(formData).toString());
+
+            fetch('/api/tool/{{ metadata.id }}/execute', {
+                method: 'POST',
+                body: formData
+            }).then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                const processText = ({done, value}) => {
+                    if (done) {
+                        this.isExecuting = false;
+                        return;
+                    }
+
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n\n');
+
+                    lines.forEach(line => {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6).replace(/'/g, '"'));
+                                
+                                if (data.type === 'log') {
+                                    this.logs.push({
+                                        id: this.logId++,
+                                        type: 'log',
+                                        message: data.message
+                                    });
+                                } else if (data.type === 'success') {
+                                    this.logs.push({
+                                        id: this.logId++,
+                                        type: 'success',
+                                        message: `✓ ${data.message} (${data.time}秒)`
+                                    });
+                                } else if (data.type === 'error') {
+                                    this.logs.push({
+                                        id: this.logId++,
+                                        type: 'error',
+                                        message: `✗ ${data.message}`
+                                    });
+                                } else if (data.type === 'complete') {
+                                    this.result = data.result;
+                                    this.isExecuting = false;
+                                }
+                            } catch (e) {
+                                console.error('解析日志失败:', e, line);
+                            }
+                        }
+                    });
+
+                    return reader.read().then(processText);
+                };
+
+                return reader.read().then(processText);
+            }).catch(error => {
+                this.logs.push({
+                    id: this.logId++,
+                    type: 'error',
+                    message: `执行失败: ${error.message}`
+                });
+                this.isExecuting = false;
+            });
+        },
+
+        formatOutput(output) {
+            if (typeof output === 'object') {
+                return JSON.stringify(output, null, 2);
+            }
+            return output;
+        }
+    }
+}
+</script>
+{% endblock %}

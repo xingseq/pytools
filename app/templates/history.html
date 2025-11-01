@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}执行历史 - PyTools{% endblock %}
+
+{% block content %}
+<div x-data="historyViewer()">
+    <header>
+        <a href="/">← 返回</a>
+        <h1>执行历史</h1>
+    </header>
+
+    <section>
+        <table>
+            <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>工具</th>
+                    <th>状态</th>
+                    <th>执行时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="item in history" :key="item.id">
+                    <tr>
+                        <td x-text="formatDate(item.created_at)"></td>
+                        <td>
+                            <a :href="`/tool/${item.tool_id}`" x-text="item.tool_name"></a>
+                        </td>
+                        <td>
+                            <span x-show="item.result.success" style="color: green;">✓ 成功</span>
+                            <span x-show="!item.result.success" style="color: red;">✗ 失败</span>
+                        </td>
+                        <td x-text="item.result.execution_time + ' 秒'"></td>
+                        <td>
+                            <button @click="viewDetail(item)" class="secondary">查看详情</button>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+        
+        <div x-show="history.length === 0">
+            <p>暂无执行历史</p>
+        </div>
+    </section>
+
+    <!-- 详情对话框 -->
+    <dialog :open="selectedItem !== null">
+        <article x-show="selectedItem">
+            <header>
+                <a href="#close" @click.prevent="selectedItem = null" aria-label="Close"></a>
+                <h3>执行详情</h3>
+            </header>
+            <div x-show="selectedItem">
+                <h4>输入参数</h4>
+                <pre x-text="JSON.stringify(selectedItem?.inputs, null, 2)"></pre>
+                
+                <h4>执行结果</h4>
+                <pre x-text="JSON.stringify(selectedItem?.result, null, 2)"></pre>
+            </div>
+        </article>
+    </dialog>
+</div>
+
+<script>
+function historyViewer() {
+    return {
+        history: [],
+        selectedItem: null,
+
+        async init() {
+            await this.loadHistory();
+        },
+
+        async loadHistory() {
+            const response = await fetch('/api/history?limit=100');
+            this.history = await response.json();
+        },
+
+        viewDetail(item) {
+            this.selectedItem = item;
+        },
+
+        formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN');
+        }
+    }
+}
+</script>
+{% endblock %}

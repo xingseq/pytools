@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PyTools - Python工具集{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    <style>
+        :root {
+            --primary: #1976d2;
+            --primary-hover: #1565c0;
+        }
+        
+        .tool-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid var(--muted-border-color);
+        }
+        
+        .tool-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        
+        .tool-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .category-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 1rem;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .log-line {
+            margin: 0.25rem 0;
+        }
+        
+        .log-success {
+            color: #4caf50;
+        }
+        
+        .log-error {
+            color: #f44336;
+        }
+        
+        .output-container {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 2px solid var(--primary);
+            border-radius: 4px;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(0,0,0,0.1);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            text-decoration: none;
+            color: var(--primary);
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="container">
+        <ul>
+            <li><strong>🛠️ PyTools</strong></li>
+        </ul>
+        <ul class="nav-links">
+            <li><a href="/">工具列表</a></li>
+            <li><a href="/history">执行历史</a></li>
+        </ul>
+    </nav>
+    
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <footer class="container">
+        <small>PyTools v0.1.0 - Python工具集</small>
+    </footer>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
