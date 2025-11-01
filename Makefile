@@ -4,10 +4,10 @@ install:
 	poetry install
 
 run:
-	poetry run uvicorn app.main:app --host 0.0.0.0 --port 3020
+	poetry run python -m uvicorn app.main:app --host 0.0.0.0 --port 3020
 
 dev:
-	poetry run uvicorn app.main:app --host 0.0.0.0 --port 3020 --reload
+	poetry run python -m uvicorn app.main:app --host 0.0.0.0 --port 3020 --reload
 
 test:
 	poetry run pytest tests/ -v
@@ -30,7 +30,7 @@ restart:
 	@-pkill -f "uvicorn.*3020" || true
 	@sleep 2
 	@echo "Starting service..."
-	poetry run uvicorn app.main:app --host 0.0.0.0 --port 3020
+	poetry run python -m uvicorn app.main:app --host 0.0.0.0 --port 3020
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
