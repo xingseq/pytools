@@ -16,6 +16,7 @@ executor = ToolExecutor(max_workers=4)
 
 
 @router.get("/", response_class=HTMLResponse)
+@router.head("/")
 async def index(request: Request):
     """首页 - 工具列表"""
     tools = registry.get_all_tools()
@@ -45,6 +46,7 @@ async def index(request: Request):
 
 
 @router.get("/tool/{tool_id}", response_class=HTMLResponse)
+@router.head("/tool/{tool_id}")
 async def tool_detail(request: Request, tool_id: str):
     """工具详情页"""
     try:
@@ -143,6 +145,7 @@ async def execute_tool_stream(request: Request, tool_id: str):
 
 
 @router.get("/api/history")
+@router.head("/api/history")
 async def get_history(tool_id: Optional[str] = None, limit: int = 50):
     """获取执行历史"""
     history = await db.get_history(limit=limit, tool_id=tool_id)
@@ -150,6 +153,7 @@ async def get_history(tool_id: Optional[str] = None, limit: int = 50):
 
 
 @router.get("/api/history/{history_id}")
+@router.head("/api/history/{history_id}")
 async def get_history_detail(history_id: int):
     """获取历史详情"""
     history = await db.get_history_by_id(history_id)
@@ -159,6 +163,7 @@ async def get_history_detail(history_id: int):
 
 
 @router.get("/history", response_class=HTMLResponse)
+@router.head("/history")
 async def history_page(request: Request):
     """历史记录页面"""
     return templates.TemplateResponse(
