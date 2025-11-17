@@ -25,12 +25,18 @@ format:
 	poetry run black .
 	poetry run ruff check --fix .
 
-restart:
+najie-dev:
 	@echo "Stopping any running service on port 3020..."
 	@-pkill -f "uvicorn.*3020" || true
 	@sleep 2
 	@echo "Starting service..."
 	poetry run python -m uvicorn app.main:app --host 0.0.0.0 --port 3020
+
+najie-stop:
+	@echo "Stopping any running service on port 3020..."
+	@-pkill -f "uvicorn.*3020" || true
+	@sleep 2
+	@echo "Service stopped."
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
