@@ -1,4 +1,17 @@
-.PHONY: install run dev test lint format clean
+.PHONY: help install run dev test lint format clean
+
+help:
+	@echo "Available commands:"
+	@echo "  make install      - Install project dependencies using poetry"
+	@echo "  make run          - Run the application on port 3020"
+	@echo "  make dev          - Run the application in development mode with auto-reload"
+	@echo "  make test         - Run tests with pytest"
+	@echo "  make coverage     - Run tests with coverage report"
+	@echo "  make lint         - Check code style with ruff and black"
+	@echo "  make format       - Format code with black and fix with ruff"
+	@echo "  make najie-dev    - Stop existing service and start in development mode"
+	@echo "  make najie-stop   - Stop the running service on port 3020"
+	@echo "  make clean        - Remove cache files and build artifacts"
 
 install:
 	poetry install
