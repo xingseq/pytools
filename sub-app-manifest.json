@@ -23,11 +23,10 @@
     "enabled": true,
     "port": 5176,
     "startCommand": "npm run subapp",
-    "stopCommand": "npx kill-port 5176",
+    "stopCommand": "npm run subapp:stop",
     "entry": "./ui/dist/index.html",
     "buildCommand": "npm run build",
     "requireBuild": true,
-    "workingDirectory": "./ui",
     "routes": [
       { "path": "/", "name": "工具列表" }
     ]

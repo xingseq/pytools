@@ -1,0 +1,10 @@
+{
+  "name": "pytools-wrapper",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "subapp": "npm run subapp --prefix ui",
+    "subapp:stop": "npm run subapp:stop --prefix ui",
+    "build": "npm run build --prefix ui"
+  }
+}
