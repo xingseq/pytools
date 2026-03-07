@@ -1,474 +1,578 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Code2, 
+  Upload, 
+  Scissors, 
+  Type, 
   Settings, 
-  Package, 
-  Cpu, 
   Play, 
-  CheckCircle, 
+  FileText, 
+  Download,
   AlertCircle,
-  Terminal,
-  FileCode,
-  FolderOpen,
-  Zap
+  CheckCircle,
+  Loader,
+  Image as ImageIcon
 } from 'lucide-react';
 
+// API基础URL - 使用相对路径，由星序框架代理
+const API_BASE_URL = '';
+
+// 工具定义 - 与后端tools目录中的工具匹配
+const TOOLS = [
+  {
+    id: 'image_resize',
+    name: '图像缩放',
+    description: '调整图片尺寸，支持按比例或指定宽高',
+    icon: <Settings className="w-5 h-5" />,
+    category: '图像处理',
+    inputFields: [
+      {
+        name: 'image',
+        label: '上传图片',
+        type: 'file',
+        required: true,
+        accept: 'image/*',
+        helpText: '支持 JPG, PNG, GIF 等格式'
+      },
+      {
+        name: 'mode',
+        label: '缩放模式',
+        type: 'select',
+        required: true,
+        options: ['按比例', '指定宽度', '指定高度', '指定宽高'],
+        default: '按比例'
+      },
+      {
+        name: 'scale',
+        label: '缩放比例 (%)',
+        type: 'number',
+        required: false,
+        default: 50,
+        min: 1,
+        max: 1000,
+        condition: { field: 'mode', value: '按比例' }
+      },
+      {
+        name: 'width',
+        label: '宽度 (像素)',
+        type: 'number',
+        required: false,
+        min: 1,
+        condition: { field: 'mode', value: ['指定宽度', '指定宽高'] }
+      },
+      {
+        name: 'height',
+        label: '高度 (像素)',
+        type: 'number',
+        required: false,
+        min: 1,
+        condition: { field: 'mode', value: ['指定高度', '指定宽高'] }
+      }
+    ]
+  },
+  {
+    id: 'image_split',
+    name: '图片切分',
+    description: '将大图片按指定方式切分成多个小图片',
+    icon: <Scissors className="w-5 h-5" />,
+    category: '图像处理',
+    inputFields: [
+      {
+        name: 'image',
+        label: '上传图片',
+        type: 'file',
+        required: true,
+        accept: 'image/*',
+        helpText: '支持 JPG, PNG, GIF 等格式'
+      },
+      {
+        name: 'split_method',
+        label: '切分方式',
+        type: 'select',
+        required: true,
+        options: ['按行列数切分', '按固定尺寸切分'],
+        default: '按行列数切分'
+      },
+      {
+        name: 'rows',
+        label: '行数',
+        type: 'number',
+        required: false,
+        default: 2,
+        min: 1,
+        max: 50,
+        condition: { field: 'split_method', value: '按行列数切分' }
+      },
+      {
+        name: 'cols',
+        label: '列数',
+        type: 'number',
+        required: false,
+        default: 2,
+        min: 1,
+        max: 50,
+        condition: { field: 'split_method', value: '按行列数切分' }
+      },
+      {
+        name: 'slice_width',
+        label: '切片宽度(像素)',
+        type: 'number',
+        required: false,
+        min: 10,
+        condition: { field: 'split_method', value: '按固定尺寸切分' }
+      },
+      {
+        name: 'slice_height',
+        label: '切片高度(像素)',
+        type: 'number',
+        required: false,
+        min: 10,
+        condition: { field: 'split_method', value: '按固定尺寸切分' }
+      },
+      {
+        name: 'output_format',
+        label: '输出格式',
+        type: 'select',
+        required: true,
+        options: ['PNG', 'JPG', '与原图相同'],
+        default: 'PNG'
+      }
+    ]
+  },
+  {
+    id: 'text_transform',
+    name: '文本转换',
+    description: '对文本进行大小写转换、反转、去重等操作',
+    icon: <Type className="w-5 h-5" />,
+    category: '文本处理',
+    inputFields: [
+      {
+        name: 'text',
+        label: '输入文本',
+        type: 'textarea',
+        required: true,
+        placeholder: '请输入要处理的文本...',
+        rows: 6
+      },
+      {
+        name: 'operation',
+        label: '操作类型',
+        type: 'select',
+        required: true,
+        options: ['转大写', '转小写', '反转', '去除空格', '统计字数'],
+        default: '转大写'
+      }
+    ]
+  }
+];
+
 function App() {
-  const [activeTab, setActiveTab] = useState('format');
-  const [output, setOutput] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  // 格式化相关状态
-  const [formatPath, setFormatPath] = useState('');
-  const [formatter, setFormatter] = useState('black');
-  
-  // 代码检查相关状态
-  const [lintPath, setLintPath] = useState('');
-  const [linter, setLinter] = useState('pylint');
-  
-  // 依赖管理相关状态
-  const [depAction, setDepAction] = useState('list');
-  const [packageName, setPackageName] = useState('');
-  
-  // 虚拟环境相关状态
-  const [venvAction, setVenvAction] = useState('list');
-  const [venvName, setVenvName] = useState('');
-  
-  // 执行脚本相关状态
-  const [scriptPath, setScriptPath] = useState('');
-  const [scriptArgs, setScriptArgs] = useState('');
+  const [selectedTool, setSelectedTool] = useState(TOOLS[0]);
+  const [formData, setFormData] = useState({});
+  const [previewFile, setPreviewFile] = useState(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
-  const tabs = [
-    { id: 'format', name: '代码格式化', icon: Code2, color: 'text-blue-500' },
-    { id: 'lint', name: '代码检查', icon: CheckCircle, color: 'text-green-500' },
-    { id: 'deps', name: '依赖管理', icon: Package, color: 'text-yellow-500' },
-    { id: 'venv', name: '虚拟环境', icon: Cpu, color: 'text-purple-500' },
-    { id: 'run', name: '执行脚本', icon: Play, color: 'text-red-500' },
-    { id: 'terminal', name: '终端输出', icon: Terminal, color: 'text-gray-500' },
-  ];
+  // 初始化表单数据
+  useEffect(() => {
+    const initialData = {};
+    selectedTool.inputFields.forEach(field => {
+      if (field.default !== undefined) {
+        initialData[field.name] = field.default;
+      }
+    });
+    setFormData(initialData);
+    setPreviewFile(null);
+    setLogs([]);
+    setResult(null);
+    setError(null);
+  }, [selectedTool]);
 
-  const handleExecute = async () => {
-    setLoading(true);
-    setOutput('');
+  // 检查字段是否应该显示
+  const shouldShowField = (field) => {
+    if (!field.condition) return true;
     
-    try {
-      // 这里应该调用实际的API
-      // 暂时模拟API调用
-      setTimeout(() => {
-        let result = '';
-        
-        switch (activeTab) {
-          case 'format':
-            result = `✅ 格式化完成\n工具: ${formatter}\n路径: ${formatPath}\n\n使用命令: ${formatter === 'black' ? 'black' : 'autopep8 --in-place --aggressive'} ${formatPath}`;
-            break;
-          case 'lint':
-            result = `🔍 代码检查完成\n工具: ${linter}\n路径: ${lintPath}\n\n检查结果: 代码质量良好，无严重问题`;
-            break;
-          case 'deps':
-            result = `📦 依赖${depAction}操作完成\n包名: ${packageName || '无'}\n\n当前环境Python包:\n• numpy==1.24.3\n• pandas==2.0.3\n• matplotlib==3.7.2`;
-            break;
-          case 'venv':
-            result = `🐍 虚拟环境${venvAction}操作完成\n环境名称: ${venvName || '无'}\n\n可用虚拟环境:\n• venv/\n• myenv/\n• test_env/`;
-            break;
-          case 'run':
-            result = `▶️ 执行脚本完成\n脚本: ${scriptPath}\n参数: ${scriptArgs || '无'}\n\n输出:\nHello from Python!`;
-            break;
-          default:
-            result = '请选择一个功能';
-        }
-        
-        setOutput(result);
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      setOutput(`❌ 错误: ${error.message}`);
-      setLoading(false);
+    const { field: conditionField, value } = field.condition;
+    const fieldValue = formData[conditionField];
+    
+    if (Array.isArray(value)) {
+      return value.includes(fieldValue);
+    }
+    return fieldValue === value;
+  };
+
+  // 处理表单输入变化
+  const handleInputChange = (fieldName, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+  };
+
+  // 处理文件上传
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setPreviewFile({
+        name: file.name,
+        size: (file.size / 1024).toFixed(2) + ' KB',
+        type: file.type
+      });
+      
+      // 创建File对象用于FormData
+      handleInputChange('image', file);
     }
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'format':
-        return (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">文件或目录路径</label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={formatPath}
-                  onChange={(e) => setFormatPath(e.target.value)}
-                  className="flex-grow p-3 border rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="例如: ./src/ 或 ./main.py"
-                />
-                <button className="bg-gray-100 px-4 rounded-r-lg border border-l-0">
-                  <FolderOpen className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">格式化工具</label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => setFormatter('black')}
-                  className={`p-4 border rounded-lg flex flex-col items-center ${
-                    formatter === 'black' 
-                    ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                    : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <Code2 className="w-8 h-8 mb-2" />
-                  <span className="font-semibold">Black</span>
-                  <span className="text-sm text-gray-600 mt-1">代码格式化</span>
-                </button>
-                
-                <button
-                  onClick={() => setFormatter('autopep8')}
-                  className={`p-4 border rounded-lg flex flex-col items-center ${
-                    formatter === 'autopep8' 
-                    ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                    : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <Settings className="w-8 h-8 mb-2" />
-                  <span className="font-semibold">Autopep8</span>
-                  <span className="text-sm text-gray-600 mt-1">PEP8 格式化</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        );
+  // 执行工具
+  const executeTool = async () => {
+    setIsExecuting(true);
+    setLogs([]);
+    setResult(null);
+    setError(null);
+
+    try {
+      const formDataToSend = new FormData();
+      
+      // 添加表单数据
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          // 如果是文件对象，直接添加
+          if (value instanceof File) {
+            formDataToSend.append(key, value);
+          } else {
+            formDataToSend.append(key, String(value));
+          }
+        }
+      });
+
+      // 使用SSE流式执行
+      const response = await fetch(`${API_BASE_URL}/api/tool/${selectedTool.id}/execute`, {
+        method: 'POST',
+        body: formDataToSend
+      });
+
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
         
-      case 'lint':
-        return (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">文件或目录路径</label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={lintPath}
-                  onChange={(e) => setLintPath(e.target.value)}
-                  className="flex-grow p-3 border rounded-l-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="例如: ./src/ 或 ./main.py"
-                />
-                <button className="bg-gray-100 px-4 rounded-r-lg border border-l-0">
-                  <FolderOpen className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">代码检查工具</label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => setLinter('pylint')}
-                  className={`p-4 border rounded-lg flex flex-col items-center ${
-                    linter === 'pylint' 
-                    ? 'border-green-500 bg-green-50 text-green-700' 
-                    : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <AlertCircle className="w-8 h-8 mb-2" />
-                  <span className="font-semibold">Pylint</span>
-                  <span className="text-sm text-gray-600 mt-1">全面代码分析</span>
-                </button>
-                
-                <button
-                  onClick={() => setLinter('flake8')}
-                  className={`p-4 border rounded-lg flex flex-col items-center ${
-                    linter === 'flake8' 
-                    ? 'border-green-500 bg-green-50 text-green-700' 
-                    : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <CheckCircle className="w-8 h-8 mb-2" />
-                  <span className="font-semibold">Flake8</span>
-                  <span className="text-sm text-gray-600 mt-1">PEP8 检查</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        );
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
         
-      case 'deps':
-        return (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">操作类型</label>
-              <select
-                value={depAction}
-                onChange={(e) => setDepAction(e.target.value)}
-                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-              >
-                <option value="list">查看已安装包</option>
-                <option value="install">安装包</option>
-                <option value="update">更新包</option>
-                <option value="remove">卸载包</option>
-              </select>
-            </div>
-            
-            {(depAction === 'install' || depAction === 'update' || depAction === 'remove') && (
-              <div>
-                <label className="block text-sm font-medium mb-2">包名称</label>
-                <input
-                  type="text"
-                  value={packageName}
-                  onChange={(e) => setPackageName(e.target.value)}
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                  placeholder="例如: numpy, pandas, requests"
-                />
-              </div>
-            )}
-            
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <Package className="w-5 h-5 text-yellow-600 mr-2 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-yellow-800">依赖管理说明</h4>
-                  <p className="text-yellow-700 text-sm mt-1">
-                    使用 pip 管理 Python 包依赖。支持安装、更新、卸载包，以及查看当前环境已安装的包列表。
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-        
-      case 'venv':
-        return (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">操作类型</label>
-              <select
-                value={venvAction}
-                onChange={(e) => setVenvAction(e.target.value)}
-                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              >
-                <option value="list">查看虚拟环境</option>
-                <option value="create">创建虚拟环境</option>
-                <option value="activate">激活虚拟环境</option>
-                <option value="delete">删除虚拟环境</option>
-              </select>
-            </div>
-            
-            {(venvAction === 'create' || venvAction === 'activate' || venvAction === 'delete') && (
-              <div>
-                <label className="block text-sm font-medium mb-2">虚拟环境名称</label>
-                <input
-                  type="text"
-                  value={venvName}
-                  onChange={(e) => setVenvName(e.target.value)}
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="例如: venv, myenv, project_env"
-                />
-              </div>
-            )}
-            
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <Cpu className="w-5 h-5 text-purple-600 mr-2 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-purple-800">虚拟环境说明</h4>
-                  <p className="text-purple-700 text-sm mt-1">
-                    虚拟环境可以隔离不同项目的依赖，避免包冲突。建议为每个Python项目创建独立的虚拟环境。
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-        
-      case 'run':
-        return (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Python脚本路径</label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={scriptPath}
-                  onChange={(e) => setScriptPath(e.target.value)}
-                  className="flex-grow p-3 border rounded-l-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  placeholder="例如: ./scripts/main.py"
-                />
-                <button className="bg-gray-100 px-4 rounded-r-lg border border-l-0">
-                  <FileCode className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">脚本参数（可选）</label>
-              <input
-                type="text"
-                value={scriptArgs}
-                onChange={(e) => setScriptArgs(e.target.value)}
-                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                placeholder="例如: --input data.csv --output result.json"
-              />
-            </div>
-            
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <Play className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-red-800">脚本执行说明</h4>
-                  <p className="text-red-700 text-sm mt-1">
-                    执行 Python 脚本文件。可以传递参数给脚本。确保脚本有可执行权限。
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-        
-      default:
-        return null;
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.substring(6);
+            try {
+              const data = JSON.parse(dataStr);
+              
+              if (data.type === 'log') {
+                setLogs(prev => [...prev, data.message]);
+              } else if (data.type === 'complete') {
+                setResult(data.result);
+              } else if (data.type === 'error') {
+                setError(data.message);
+              }
+            } catch (e) {
+              console.error('解析SSE数据失败:', e, dataStr);
+            }
+          }
+        }
+      }
+      
+    } catch (err) {
+      setError(err.message);
+      setLogs(prev => [...prev, `❌ 错误: ${err.message}`]);
+    } finally {
+      setIsExecuting(false);
     }
+  };
+
+  // 下载结果文件
+  const downloadFile = (filename) => {
+    const url = `${API_BASE_URL}/outputs/${filename}`;
+    window.open(url, '_blank');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+    <div className="min-h-screen bg-gray-50 text-gray-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* 头部 */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-3 rounded-xl">
-                <Zap className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">PyTools</h1>
-                <p className="text-gray-600">Python 开发工具集 - 代码格式化、检查、依赖管理、虚拟环境管理</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                设置
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                帮助
-              </button>
-            </div>
-          </div>
-        </div>
+        {/* 顶部标题 */}
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
+            <ImageIcon className="w-8 h-8 text-blue-600" />
+            Python工具集 - 图像处理与文本转换
+          </h1>
+          <p className="text-gray-600 mt-2">
+            提供图像缩放、图片切分和文本转换等实用工具
+          </p>
+        </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 左侧面板 */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              {/* 标签页 */}
-              <div className="border-b">
-                <div className="flex overflow-x-auto">
-                  {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center space-x-2 px-6 py-4 whitespace-nowrap border-b-2 transition-colors ${
-                          activeTab === tab.id
-                            ? `${tab.color} border-current font-semibold`
-                            : 'text-gray-500 border-transparent hover:text-gray-700'
-                        }`}
-                      >
-                        <Icon className="w-5 h-5" />
-                        <span>{tab.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 内容区域 */}
-              <div className="p-8">
-                {renderContent()}
-                
-                {/* 执行按钮 */}
-                <div className="mt-8 pt-6 border-t">
-                  <button
-                    onClick={handleExecute}
-                    disabled={loading}
-                    className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all ${
-                      loading
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
-                    }`}
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        执行中...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center">
-                        <Play className="w-5 h-5 mr-2" />
-                        执行命令
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 右侧输出面板 */}
-          <div className="lg:col-span-1">
-            <div className="bg-gray-900 rounded-2xl shadow-lg overflow-hidden h-full">
-              <div className="bg-gray-800 px-6 py-4 border-b border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Terminal className="w-5 h-5 text-green-400" />
-                    <h2 className="text-lg font-semibold text-white">终端输出</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* 左侧工具栏 */}
+          <div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4">
+            <h2 className="text-lg font-semibold text-gray-700 mb-4">工具列表</h2>
+            <div className="space-y-2">
+              {TOOLS.map(tool => (
+                <button
+                  key={tool.id}
+                  onClick={() => setSelectedTool(tool)}
+                  className={`w-full text-left p-3 rounded-lg transition-all ${
+                    selectedTool.id === tool.id
+                      ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                      : 'hover:bg-gray-50 text-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-md ${
+                      selectedTool.id === tool.id ? 'bg-blue-100' : 'bg-gray-100'
+                    }`}>
+                      {tool.icon}
+                    </div>
+                    <div>
+                      <div className="font-medium">{tool.name}</div>
+                      <div className="text-xs text-gray-500 mt-1">{tool.description}</div>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => setOutput('')}
-                    className="px-3 py-1 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    清空
-                  </button>
+                </button>
+              ))}
+            </div>
+
+            {/* 当前工具信息 */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-600 mb-2">当前工具</h3>
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 text-blue-700">
+                  {selectedTool.icon}
+                  <span className="font-medium">{selectedTool.name}</span>
+                </div>
+                <p className="text-sm text-blue-600 mt-2">{selectedTool.description}</p>
+                <div className="mt-2">
+                  <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                    {selectedTool.category}
+                  </span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* 主内容区 */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* 表单区域 */}
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-6">参数设置</h2>
               
-              <div className="p-6 h-[calc(100%-80px)]">
-                {output ? (
-                  <div className="font-mono text-sm text-gray-300 whitespace-pre-wrap h-full overflow-y-auto">
-                    {output}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {selectedTool.inputFields
+                  .filter(shouldShowField)
+                  .map(field => (
+                    <div 
+                      key={field.name} 
+                      className={field.type === 'textarea' ? 'md:col-span-2' : ''}
+                    >
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {field.label}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      
+                      {field.type === 'select' ? (
+                        <select
+                          value={formData[field.name] || field.default || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {field.options.map(option => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : field.type === 'textarea' ? (
+                        <textarea
+                          value={formData[field.name] || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          placeholder={field.placeholder}
+                          rows={field.rows || 4}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                        />
+                      ) : field.type === 'file' ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <label className="flex-1">
+                              <div className="cursor-pointer border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors">
+                                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                <div className="text-sm text-gray-600">
+                                  点击选择文件或拖放文件到这里
+                                </div>
+                                <input
+                                  type="file"
+                                  onChange={handleFileUpload}
+                                  accept={field.accept}
+                                  className="hidden"
+                                />
+                              </div>
+                            </label>
+                          </div>
+                          
+                          {previewFile && (
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-5 h-5 text-green-600" />
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm">{previewFile.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {previewFile.size} · {previewFile.type}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : field.type === 'number' ? (
+                        <input
+                          type="number"
+                          value={formData[field.name] || field.default || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          min={field.min}
+                          max={field.max}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={formData[field.name] || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          placeholder={field.placeholder}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      )}
+                      
+                      {field.helpText && (
+                        <p className="mt-1 text-xs text-gray-500">{field.helpText}</p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+
+              {/* 执行按钮 */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <button
+                  onClick={executeTool}
+                  disabled={isExecuting}
+                  className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+                    isExecuting
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {isExecuting ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin" />
+                      执行中...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5" />
+                      执行工具
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 输出区域 */}
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">执行输出</h2>
+              
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="font-medium text-red-800">执行错误</h3>
+                      <p className="text-red-600 mt-1">{error}</p>
+                    </div>
                   </div>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                    <Terminal className="w-16 h-16 mb-4" />
-                    <p className="text-center">执行命令后，输出将显示在这里</p>
-                    <p className="text-sm text-gray-600 mt-2">支持格式化和检查 Python 代码</p>
+                </div>
+              )}
+
+              {result && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h3 className="font-medium text-green-800">执行成功</h3>
+                      <pre className="mt-2 text-green-700 whitespace-pre-wrap bg-green-100 p-3 rounded text-sm">
+                        {result.output || JSON.stringify(result, null, 2)}
+                      </pre>
+                      
+                      {result.files && result.files.length > 0 && (
+                        <div className="mt-3">
+                          <h4 className="text-sm font-medium text-green-800 mb-2">生成文件:</h4>
+                          <div className="space-y-2">
+                            {result.files.map((file, index) => (
+                              <div key={index} className="flex items-center justify-between bg-green-100 p-3 rounded">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="w-4 h-4 text-green-700" />
+                                  <span className="text-sm text-green-800">{file.name}</span>
+                                </div>
+                                <button
+                                  onClick={() => downloadFile(file.name)}
+                                  className="text-xs bg-green-200 hover:bg-green-300 text-green-800 px-3 py-1 rounded transition-colors flex items-center gap-1"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  下载
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
+              )}
+
+              {/* 日志输出 */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700">执行日志</h3>
+                </div>
+                <div className="h-64 overflow-y-auto bg-gray-900 p-4">
+                  {logs.length === 0 ? (
+                    <div className="text-gray-500 italic text-sm">
+                      暂无日志，执行工具后日志将显示在这里...
+                    </div>
+                  ) : (
+                    <div className="font-mono text-sm space-y-1">
+                      {logs.map((log, index) => (
+                        <div key={index} className="text-gray-300">
+                          <span className="text-gray-500">[{new Date().toLocaleTimeString()}]</span>{' '}
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 底部信息 */}
-        <div className="mt-8 bg-white rounded-2xl shadow-lg p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">5</div>
-              <div className="text-gray-600">核心功能</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">Python 3.7+</div>
-              <div className="text-gray-600">支持版本</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">CLI + UI</div>
-              <div className="text-gray-600">双模式</div>
-            </div>
-          </div>
-        </div>
+        {/* 页脚 */}
+        <footer className="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
+          <p>Python工具集 v1.0.0 · 星序引擎子应用</p>
+          <p className="mt-1">后端API: FastAPI + Python · 前端: React + Tailwind CSS</p>
+        </footer>
       </div>
     </div>
   );
