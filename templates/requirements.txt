@@ -1,0 +1,36 @@
+# PyTools 示例依赖文件
+# Python 包依赖配置
+
+# 数据分析
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+
+# 数据处理
+scipy>=1.10.0
+scikit-learn>=1.3.0
+
+# Web 开发
+flask>=3.0.0
+requests>=2.31.0
+fastapi>=0.104.0
+
+# 开发工具
+black>=23.0.0
+autopep8>=2.0.0
+pylint>=3.0.0
+flake8>=6.0.0
+mypy>=1.7.0
+
+# 测试工具
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# 其他工具
+jupyter>=1.0.0
+ipython>=8.17.0
+tqdm>=4.66.0
+
+# 文档生成
+sphinx>=7.2.0
+pdoc>=13.0.0

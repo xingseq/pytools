@@ -1,0 +1,18 @@
+{
+  "name": "pytools",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Python 开发工具集 - 代码格式化、检查、依赖管理、虚拟环境管理",
+  "scripts": {
+    "start": "node bin/pytools.js",
+    "subapp": "node bin/pytools.js"
+  },
+  "bin": {
+    "pytools": "./bin/pytools.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "chalk": "^5.3.0",
+    "execa": "^8.0.1"
+  }
+}

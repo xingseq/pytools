@@ -1,0 +1,49 @@
+{
+  "$schema": "https://najie.app/schemas/sub-app-manifest.json",
+  "name": "pytools",
+  "displayName": "Python工具集",
+  "version": "0.1.0",
+  "description": "Python工具集Web应用 - 图像处理、文本转换等工具",
+  "required": false,
+  "capabilities": [
+    "image-processing",
+    "text-conversion",
+    "file-upload"
+  ],
+  "cli": {
+    "enabled": false
+  },
+  "api": {
+    "enabled": true,
+    "port": 3020,
+    "startCommand": "make run",
+    "workingDirectory": "."
+  },
+  "ui": {
+    "enabled": true,
+    "port": 5176,
+    "startCommand": "npm run subapp",
+    "stopCommand": "npx kill-port 5176",
+    "entry": "./ui/dist/index.html",
+    "buildCommand": "npm run build",
+    "requireBuild": true,
+    "workingDirectory": "./ui",
+    "routes": [
+      { "path": "/", "name": "工具列表" }
+    ]
+  },
+  "dev": {
+    "systemPrompt": "./dev/prompt.md",
+    "docsRoot": "./doc/",
+    "contextIncludes": ["readme", "structure"],
+    "memories": {
+      "enabled": true,
+      "storePath": "./dev/memories/",
+      "autoExtract": true,
+      "maxContextMemories": 20
+    }
+  },
+  "dependencies": {
+    "runtime": []
+  }
+}
