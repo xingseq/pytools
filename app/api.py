@@ -117,7 +117,7 @@ async def execute_tool_stream(request: Request, tool_id: str):
             async for event in executor.execute_with_stream(tool, inputs):
                 yield event
                 # 捕获最终结果
-                if '"type": "complete"' in event:
+                if '\"type\": \"complete\"' in event:
                     try:
                         result_data = json.loads(event.split("'result': ")[1].rstrip("}'\n\n"))
                         final_result = result_data
@@ -170,3 +170,22 @@ async def history_page(request: Request):
         "history.html",
         {"request": request}
     )
+
+
+@router.get("/api/tools")
+@router.head("/api/tools")
+async def list_tools():
+    """列出所有已注册的工具"""
+    tools = registry.get_all_tools()
+    tools_list = []
+    for tool_id, tool in tools.items():
+        metadata = tool.get_metadata()
+        tools_list.append({
+            "id": tool_id,
+            "name": metadata.name,
+            "description": metadata.description,
+            "category": metadata.category,
+            "version": metadata.version,
+            "input_fields": [field.model_dump() for field in metadata.input_fields]
+        })
+    return JSONResponse(content=tools_list)

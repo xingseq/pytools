@@ -49,6 +49,10 @@ class ToolRegistry:
                         print(f"✗ 加载工具 {name} 失败: {e}")
         except Exception as e:
             print(f"工具自动发现失败: {e}")
+    
+    def clear(self):
+        """清空注册表"""
+        self._tools.clear()
 
 
 # 全局注册中心

@@ -1,5 +1,6 @@
 import asyncio
 import time
+import json
 from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, AsyncGenerator
 from core.base_tool import BaseTool
@@ -31,7 +32,12 @@ class ToolExecutor:
         """
         start_time = time.time()
         
-        yield f"data: {{'type': 'log', 'message': '开始执行工具...'}}\n\n"
+        # 发送开始日志 - 使用正确的JSON格式
+        start_event = {
+            "type": "log",
+            "message": "开始执行工具..."
+        }
+        yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
         
         try:
             # 在进程池中执行工具
@@ -46,40 +52,71 @@ class ToolExecutor:
             
             # 发送日志
             for log in result.logs:
-                yield f"data: {{'type': 'log', 'message': {repr(log)}}}\n\n"
+                log_event = {
+                    "type": "log",
+                    "message": log
+                }
+                yield f"data: {json.dumps(log_event, ensure_ascii=False)}\n\n"
             
             # 发送结果
             if result.success:
-                yield f"data: {{'type': 'success', 'message': '执行成功', 'time': {execution_time:.2f}}}\n\n"
+                success_event = {
+                    "type": "success",
+                    "message": "执行成功",
+                    "time": round(execution_time, 2)
+                }
+                yield f"data: {json.dumps(success_event, ensure_ascii=False)}\n\n"
             else:
-                yield f"data: {{'type': 'error', 'message': {repr(result.error)}}}\n\n"
+                error_event = {
+                    "type": "error",
+                    "message": result.error
+                }
+                yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
             
             # 发送完成信号和结果
-            import json
-            result_json = json.dumps(result.model_dump(), ensure_ascii=False, default=str)
-            yield f"data: {{'type': 'complete', 'result': {result_json}}}\n\n"
+            complete_event = {
+                "type": "complete",
+                "result": result.model_dump()
+            }
+            yield f"data: {json.dumps(complete_event, ensure_ascii=False, default=str)}\n\n"
             
         except asyncio.TimeoutError:
-            yield f"data: {{'type': 'error', 'message': '执行超时（{timeout}秒）'}}\n\n"
+            timeout_event = {
+                "type": "error",
+                "message": f"执行超时（{timeout}秒）"
+            }
+            yield f"data: {json.dumps(timeout_event, ensure_ascii=False)}\n\n"
+            
             result = ToolExecutionResult(
                 success=False,
                 error=f"执行超时（{timeout}秒）",
                 execution_time=timeout
             )
-            import json
-            result_json = json.dumps(result.model_dump(), ensure_ascii=False)
-            yield f"data: {{'type': 'complete', 'result': {result_json}}}\n\n"
+            
+            complete_event = {
+                "type": "complete",
+                "result": result.model_dump()
+            }
+            yield f"data: {json.dumps(complete_event, ensure_ascii=False, default=str)}\n\n"
             
         except Exception as e:
-            yield f"data: {{'type': 'error', 'message': {repr(str(e))}}}\n\n"
+            error_event = {
+                "type": "error",
+                "message": str(e)
+            }
+            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+            
             result = ToolExecutionResult(
                 success=False,
                 error=str(e),
                 execution_time=time.time() - start_time
             )
-            import json
-            result_json = json.dumps(result.model_dump(), ensure_ascii=False)
-            yield f"data: {{'type': 'complete', 'result': {result_json}}}\n\n"
+            
+            complete_event = {
+                "type": "complete",
+                "result": result.model_dump()
+            }
+            yield f"data: {json.dumps(complete_event, ensure_ascii=False, default=str)}\n\n"
     
     async def execute(
         self, 
